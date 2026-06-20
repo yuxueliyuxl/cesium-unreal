@@ -38,6 +38,7 @@
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "PixelFormat.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "RuntimeNanite/CesiumPrimitiveMeshData.h"
 #include "StaticMeshOperations.h"
 #include "StaticMeshResources.h"
 #include "UObject/ConstructorHelpers.h"
@@ -1788,6 +1789,13 @@ static void loadPrimitive(
 
   primitiveResult.meshIndex = options.pMeshOptions->meshIndex;
   primitiveResult.primitiveIndex = options.primitiveIndex;
+  primitiveResult.pPrimitiveMeshData =
+      MakeUnique<FCesiumPrimitiveMeshData>(
+          ExtractCesiumPrimitiveMeshData(
+              LODResources.VertexBuffers,
+              indices,
+              pRenderData->Bounds,
+              LODResources.bHasColorVertexData));
   primitiveResult.pRenderData = std::move(pRenderData);
   primitiveResult.pCollisionMesh = nullptr;
   primitiveResult.transform =

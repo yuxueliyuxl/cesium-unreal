@@ -11,5 +11,5 @@
 
 TUniquePtr<FStaticMeshRenderData>
 BuildCesiumRuntimeNaniteRenderData(
-    const FCesiumRuntimeNaniteMeshData& Mesh,
+    const FCesiumPrimitiveMeshData& Mesh,
     int32 PositionPrecision = 4);

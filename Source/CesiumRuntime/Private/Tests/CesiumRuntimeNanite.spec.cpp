@@ -3,6 +3,7 @@
 #if WITH_EDITOR
 
 #include "Cesium3DTileset.h"
+#include "RuntimeNanite/CesiumPrimitiveMeshData.h"
 #include "Misc/AutomationTest.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteBuilder.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteEncoding.h"
@@ -181,7 +182,7 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
         EAutomationTestFlags::ProductFilter);
 
 bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
-  FCesiumRuntimeNaniteMeshData Mesh;
+  FCesiumPrimitiveMeshData Mesh;
   Mesh.Positions = {
       FVector3f(0.0f, 0.0f, 0.0f),
       FVector3f(100.0f, 0.0f, 0.0f),
@@ -206,7 +207,7 @@ bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
           : 0u,
       uint32(1));
 
-  FCesiumRuntimeNaniteMeshData MultiClusterMesh = Mesh;
+  FCesiumPrimitiveMeshData MultiClusterMesh = Mesh;
   MultiClusterMesh.Indices.Reset();
   for (int32 Triangle = 0; Triangle < 90; ++Triangle) {
     MultiClusterMesh.Indices.Append({0, 1, 2});
@@ -226,7 +227,7 @@ bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
           : 0u,
       uint32(90));
 
-  FCesiumRuntimeNaniteMeshData Invalid = Mesh;
+  FCesiumPrimitiveMeshData Invalid = Mesh;
   Invalid.Positions.Reset();
   TestNull(
       TEXT("Empty positions fail safely"),
@@ -265,6 +266,74 @@ bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
   TestNull(
       TEXT("Too many texture coordinates fail safely"),
       BuildCesiumRuntimeNaniteRenderData(Invalid).Get());
+  return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FCesiumPrimitiveMeshDataExtraction,
+    "Cesium.Unit.RuntimeNanite.PrimitiveMeshData",
+    EAutomationTestFlags::EditorContext |
+        EAutomationTestFlags::ProductFilter);
+
+bool FCesiumPrimitiveMeshDataExtraction::RunTest(const FString&) {
+  FStaticMeshVertexBuffers Buffers;
+  const TArray<FVector3f> Positions{
+      FVector3f(1.0f, -2.0f, 3.0f),
+      FVector3f(4.0f, -5.0f, 6.0f),
+      FVector3f(7.0f, -8.0f, 9.0f)};
+  Buffers.PositionVertexBuffer.Init(Positions);
+  Buffers.StaticMeshVertexBuffer.SetUseFullPrecisionUVs(true);
+  Buffers.StaticMeshVertexBuffer.Init(3, 2);
+  Buffers.ColorVertexBuffer.Init(3);
+
+  for (uint32 Index = 0; Index < 3; ++Index) {
+    Buffers.StaticMeshVertexBuffer.SetVertexTangents(
+        Index,
+        FVector3f::ForwardVector,
+        Index == 1 ? -FVector3f::RightVector : FVector3f::RightVector,
+        FVector3f::UpVector);
+    Buffers.StaticMeshVertexBuffer.SetVertexUV(
+        Index,
+        0,
+        FVector2f(float(Index), float(Index) + 0.25f));
+    Buffers.StaticMeshVertexBuffer.SetVertexUV(
+        Index,
+        1,
+        FVector2f(float(Index) + 0.5f, float(Index) + 0.75f));
+    Buffers.ColorVertexBuffer.VertexColor(Index) =
+        FColor(uint8(10 + Index), uint8(20 + Index), uint8(30 + Index), 255);
+  }
+
+  const TArray<uint32> Indices{0, 2, 1};
+  const FBoxSphereBounds Bounds(
+      FVector(4.0, -5.0, 6.0),
+      FVector(3.0, 3.0, 3.0),
+      5.0);
+  const FCesiumPrimitiveMeshData Mesh =
+      ExtractCesiumPrimitiveMeshData(Buffers, Indices, Bounds, true);
+
+  TestEqual(TEXT("Positions are retained"), Mesh.Positions, Positions);
+  TestEqual(TEXT("Indices are retained"), Mesh.Indices, Indices);
+  TestEqual(TEXT("Two UV sets are retained"), Mesh.TextureCoordinates.Num(), 2);
+  TestEqual(
+      TEXT("Second UV set is retained"),
+      Mesh.TextureCoordinates[1][2],
+      FVector2f(2.5f, 2.75f));
+  TestEqual(
+      TEXT("Normals are retained"),
+      Mesh.Normals[0],
+      FVector3f::UpVector);
+  TestEqual(
+      TEXT("Tangents are retained"),
+      Mesh.TangentsX[0],
+      FVector3f::ForwardVector);
+  TestEqual(TEXT("Tangent sign is retained"), Mesh.TangentSigns[1], -1.0f);
+  TestTrue(TEXT("Colors are marked present"), Mesh.bHasColors);
+  TestEqual(
+      TEXT("Vertex colors are retained"),
+      Mesh.Colors[2],
+      FColor(12, 22, 32, 255));
+  TestEqual(TEXT("Bounds are retained"), Mesh.Bounds, Bounds);
   return true;
 }
 

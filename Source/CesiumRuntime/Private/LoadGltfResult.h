@@ -16,6 +16,7 @@
 #include "Containers/UnrealString.h"
 #include "EncodedFeaturesMetadata.h"
 #include "Math/TransformNonVectorized.h"
+#include "RuntimeNanite/CesiumRuntimeNaniteTypes.h"
 #include "StaticMeshResources.h"
 #include "Templates/SharedPointer.h"
 
@@ -52,6 +53,12 @@ struct LoadedPrimitiveResult {
    * created on the main thread.
    */
   TUniquePtr<FStaticMeshRenderData> pRenderData = nullptr;
+
+  /**
+   * Final Unreal-local primitive mesh data shared by the Legacy and runtime
+   * Nanite rendering paths.
+   */
+  TUniquePtr<FCesiumPrimitiveMeshData> pPrimitiveMeshData = nullptr;
 
   /**
    * Data for rendering a Gaussian splats. Used instead of `RenderData` when the

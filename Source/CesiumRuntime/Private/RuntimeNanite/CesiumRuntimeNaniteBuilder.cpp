@@ -74,7 +74,7 @@ FBox3f GetBounds(const TArray<FVector3f>& Positions) {
   return Bounds;
 }
 
-bool ValidateMesh(const FCesiumRuntimeNaniteMeshData& Mesh) {
+bool ValidateMesh(const FCesiumPrimitiveMeshData& Mesh) {
   if (Mesh.Positions.IsEmpty() ||
       Mesh.Normals.Num() != Mesh.Positions.Num() ||
       Mesh.Indices.IsEmpty() || Mesh.Indices.Num() % 3 != 0 ||
@@ -99,7 +99,7 @@ bool ValidateMesh(const FCesiumRuntimeNaniteMeshData& Mesh) {
 }
 
 TArray<TUniquePtr<FCesiumRuntimeNaniteCluster>>
-CreateClusters(const FCesiumRuntimeNaniteMeshData& Mesh) {
+CreateClusters(const FCesiumPrimitiveMeshData& Mesh) {
   TArray<TUniquePtr<FCesiumRuntimeNaniteCluster>> Clusters;
   const int32 TriangleCount = Mesh.Indices.Num() / 3;
 
@@ -865,7 +865,7 @@ bool BuildResources(
 
 TUniquePtr<FStaticMeshRenderData>
 BuildCesiumRuntimeNaniteRenderData(
-    const FCesiumRuntimeNaniteMeshData& Mesh,
+    const FCesiumPrimitiveMeshData& Mesh,
     int32 PositionPrecision) {
   if (!ValidateMesh(Mesh)) {
     return nullptr;
