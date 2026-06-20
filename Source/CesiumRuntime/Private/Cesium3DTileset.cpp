@@ -551,6 +551,21 @@ void ACesium3DTileset::SetEnableWaterMask(bool bEnableMask) {
   }
 }
 
+void ACesium3DTileset::SetTerrainExaggeration(
+    double InTerrainExaggeration) {
+  if (this->TerrainExaggeration != InTerrainExaggeration) {
+    this->TerrainExaggeration = InTerrainExaggeration;
+    this->DestroyTileset();
+  }
+}
+
+void ACesium3DTileset::SetIgnoreTransform(bool bIgnoreTransform) {
+  if (this->IgnoreTransform != bIgnoreTransform) {
+    this->IgnoreTransform = bIgnoreTransform;
+    this->DestroyTileset();
+  }
+}
+
 void ACesium3DTileset::SetIgnoreKhrMaterialsUnlit(
     bool bIgnoreKhrMaterialsUnlit) {
   if (this->IgnoreKhrMaterialsUnlit != bIgnoreKhrMaterialsUnlit) {
@@ -968,7 +983,7 @@ void ACesium3DTileset::LoadTileset() {
   const TSharedRef<CesiumViewExtension, ESPMode::ThreadSafe>&
       cesiumViewExtension = getCesiumViewExtension();
   const std::shared_ptr<CesiumAsync::IAssetAccessor>& pAssetAccessor =
-      getAssetAccessor();
+      this->GetAssetAccessor(this);
   const CesiumAsync::AsyncSystem& asyncSystem = getAsyncSystem();
 
   // Both the feature flag and the CesiumViewExtension are global, not owned by
@@ -1045,6 +1060,7 @@ void ACesium3DTileset::LoadTileset() {
   this->LoadProgress = 0;
 
   Cesium3DTilesSelection::TilesetOptions options;
+  this->SetTilesetContentOptions(options.contentOptions);
 
   options.ellipsoid = pNativeEllipsoid;
 
@@ -1097,6 +1113,8 @@ void ACesium3DTileset::LoadTileset() {
   options.contentOptions.generateMissingNormalsSmooth =
       this->GenerateSmoothNormals;
 
+  options.contentOptions.terrainExaggeration = this->TerrainExaggeration;
+  options.contentOptions.ignoreTransform = this->IgnoreTransform;
   options.contentOptions.enableWaterMask = this->EnableWaterMask;
 
   CesiumGltf::SupportedGpuCompressedPixelFormats supportedFormats;
@@ -1146,6 +1164,48 @@ void ACesium3DTileset::LoadTileset() {
         TCHAR_TO_UTF8(*this->Url),
         options);
     break;
+  case ETilesetSource::FromHoloveser: {
+    FString holoveserUrl;
+    switch (this->IonAssetID) {
+    case 1:
+      holoveserUrl =
+          TEXT("https://tiles.geovisearth.com/base/v1/terrain/layer.json?"
+               "token="
+               "d8cdb82643a515ac484729f6c36633046e9592c1dc19ee060d23e9f73ee291b8");
+      break;
+    case 2:
+      holoveserUrl =
+          TEXT("https://api.maptiler.com/tiles/"
+               "terrain-quantized-mesh-v2/tiles.json?"
+               "key=9lXAq3Vt5W0clM1ZOYsS");
+      break;
+    case 3:
+      holoveserUrl = TEXT("http://121.224.73.36:9003/JIANGSHU/layer.json");
+      break;
+    case 4:
+      holoveserUrl =
+          TEXT("http://api.holoveser.com/mapserver/china/tileset.json");
+      break;
+    default:
+      UE_LOG(
+          LogCesium,
+          Error,
+          TEXT("Unknown Holoveser service ID %lld"),
+          this->IonAssetID);
+      break;
+    }
+
+    UE_LOG(
+        LogCesium,
+        Log,
+        TEXT("Loading tileset from Holoveser service %lld"),
+        this->IonAssetID);
+    this->_pTileset = MakeUnique<Cesium3DTilesSelection::Tileset>(
+        externals,
+        TCHAR_TO_UTF8(*holoveserUrl),
+        options);
+    break;
+  }
   case ETilesetSource::FromCesiumIon:
     UE_LOG(
         LogCesium,
@@ -1253,6 +1313,13 @@ void ACesium3DTileset::LoadTileset() {
         TEXT("Loading tileset from URL %s done"),
         *this->Url);
     break;
+  case ETilesetSource::FromHoloveser:
+    UE_LOG(
+        LogCesium,
+        Log,
+        TEXT("Loading tileset from Holoveser service %lld done"),
+        this->IonAssetID);
+    break;
   case ETilesetSource::FromCesiumIon:
     UE_LOG(
         LogCesium,
@@ -1293,6 +1360,13 @@ void ACesium3DTileset::DestroyTileset() {
         Verbose,
         TEXT("Destroying tileset from URL %s"),
         *this->Url);
+    break;
+  case ETilesetSource::FromHoloveser:
+    UE_LOG(
+        LogCesium,
+        Verbose,
+        TEXT("Destroying tileset from Holoveser service %lld"),
+        this->IonAssetID);
     break;
   case ETilesetSource::FromCesiumIon:
     UE_LOG(
@@ -1364,6 +1438,13 @@ void ACesium3DTileset::DestroyTileset() {
         Verbose,
         TEXT("Destroying tileset from URL %s done"),
         *this->Url);
+    break;
+  case ETilesetSource::FromHoloveser:
+    UE_LOG(
+        LogCesium,
+        Verbose,
+        TEXT("Destroying tileset from Holoveser service %lld done"),
+        this->IonAssetID);
     break;
   case ETilesetSource::FromCesiumIon:
     UE_LOG(
@@ -2316,6 +2397,9 @@ void ACesium3DTileset::PostEditChangeProperty(
       PropName ==
           GET_MEMBER_NAME_CHECKED(ACesium3DTileset, GenerateSmoothNormals) ||
       PropName == GET_MEMBER_NAME_CHECKED(ACesium3DTileset, EnableWaterMask) ||
+      PropName ==
+          GET_MEMBER_NAME_CHECKED(ACesium3DTileset, TerrainExaggeration) ||
+      PropName == GET_MEMBER_NAME_CHECKED(ACesium3DTileset, IgnoreTransform) ||
       PropName ==
           GET_MEMBER_NAME_CHECKED(ACesium3DTileset, IgnoreKhrMaterialsUnlit) ||
       PropName == GET_MEMBER_NAME_CHECKED(ACesium3DTileset, Material) ||
