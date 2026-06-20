@@ -39,6 +39,9 @@ UnrealPrepareRendererResources::prepareInLoadThread(
   options.createPhysicsMeshes = this->_pActor->GetCreatePhysicsMeshes();
 
   options.ignoreKhrMaterialsUnlit = this->_pActor->GetIgnoreKhrMaterialsUnlit();
+  options.enableRuntimeNanite = this->_pActor->GetEnableRuntimeNanite();
+  options.runtimeNaniteMinimumTriangleCount =
+      this->_pActor->GetRuntimeNaniteMinimumTriangleCount();
 
   options.pFeaturesMetadata = this->_pActor->_pFeaturesMetadataComponent;
 

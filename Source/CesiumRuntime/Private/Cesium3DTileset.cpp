@@ -544,6 +544,23 @@ void ACesium3DTileset::SetGenerateSmoothNormals(bool bGenerateSmoothNormals) {
   }
 }
 
+void ACesium3DTileset::SetEnableRuntimeNanite(bool bEnableRuntimeNanite) {
+  if (this->EnableRuntimeNanite != bEnableRuntimeNanite) {
+    this->EnableRuntimeNanite = bEnableRuntimeNanite;
+    this->DestroyTileset();
+  }
+}
+
+void ACesium3DTileset::SetRuntimeNaniteMinimumTriangleCount(
+    int32 MinimumTriangleCount) {
+  const int32 ClampedMinimumTriangleCount = FMath::Max(0, MinimumTriangleCount);
+  if (this->RuntimeNaniteMinimumTriangleCount !=
+      ClampedMinimumTriangleCount) {
+    this->RuntimeNaniteMinimumTriangleCount = ClampedMinimumTriangleCount;
+    this->DestroyTileset();
+  }
+}
+
 void ACesium3DTileset::SetEnableWaterMask(bool bEnableMask) {
   if (this->EnableWaterMask != bEnableMask) {
     this->EnableWaterMask = bEnableMask;
@@ -2315,6 +2332,11 @@ void ACesium3DTileset::PostEditChangeProperty(
           GET_MEMBER_NAME_CHECKED(ACesium3DTileset, AlwaysIncludeTangents) ||
       PropName ==
           GET_MEMBER_NAME_CHECKED(ACesium3DTileset, GenerateSmoothNormals) ||
+      PropName ==
+          GET_MEMBER_NAME_CHECKED(ACesium3DTileset, EnableRuntimeNanite) ||
+      PropName == GET_MEMBER_NAME_CHECKED(
+                      ACesium3DTileset,
+                      RuntimeNaniteMinimumTriangleCount) ||
       PropName == GET_MEMBER_NAME_CHECKED(ACesium3DTileset, EnableWaterMask) ||
       PropName ==
           GET_MEMBER_NAME_CHECKED(ACesium3DTileset, IgnoreKhrMaterialsUnlit) ||
