@@ -6,6 +6,7 @@
 #include "RuntimeNanite/CesiumPrimitiveMeshData.h"
 #include "RuntimeNanite/CesiumPrimitiveRenderPath.h"
 #include "Misc/AutomationTest.h"
+#include "Materials/Material.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteBuilder.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteEncoding.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteEligibility.h"
@@ -124,6 +125,11 @@ bool FCesiumRuntimeNaniteEligibility::RunTest(const FString&) {
       TEXT("Eligible input has no fallback"),
       Result.FallbackReason,
       ECesiumRuntimeNaniteFallbackReason::None);
+  TestEqual(
+      TEXT("Fallback reasons have stable diagnostic text"),
+      FString(LexToString(
+          ECesiumRuntimeNaniteFallbackReason::BuilderFailed)),
+      FString(TEXT("BuilderFailed")));
   return true;
 }
 
@@ -207,6 +213,51 @@ bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
           ? RenderData->NaniteResourcesPtr->NumInputTriangles
           : 0u,
       uint32(1));
+
+  FCesiumPrimitiveMeshData MultiUVMesh = Mesh;
+  MultiUVMesh.TextureCoordinates.SetNum(3);
+  MultiUVMesh.TextureCoordinates[0] = {
+      FVector2f(0.0f, 0.0f),
+      FVector2f(1.0f, 0.0f),
+      FVector2f(0.0f, 1.0f)};
+  MultiUVMesh.TextureCoordinates[1] = {
+      FVector2f(0.25f, 0.25f),
+      FVector2f(0.75f, 0.25f),
+      FVector2f(0.25f, 0.75f)};
+  MultiUVMesh.TextureCoordinates[2] = {
+      FVector2f(1.0f, 1.0f),
+      FVector2f(2.0f, 1.0f),
+      FVector2f(1.0f, 2.0f)};
+  TUniquePtr<FStaticMeshRenderData> MultiUVRenderData =
+      BuildCesiumRuntimeNaniteRenderData(MultiUVMesh);
+  TestTrue(
+      TEXT("Material, raster overlay, and metadata UV sets build successfully"),
+      HasCesiumRuntimeNaniteData(MultiUVRenderData.Get()));
+
+  FCesiumPrimitiveMeshData LargeCoordinateMesh = Mesh;
+  LargeCoordinateMesh.Positions.Reset();
+  LargeCoordinateMesh.Normals.Reset();
+  LargeCoordinateMesh.Indices.Reset();
+  LargeCoordinateMesh.TextureCoordinates.SetNum(1);
+  constexpr float BigCubeExtent = 102400000.0f;
+  const FVector3f BigCubeCorners[] = {
+      {-BigCubeExtent, -BigCubeExtent, -BigCubeExtent},
+      {BigCubeExtent, -BigCubeExtent, -BigCubeExtent},
+      {-BigCubeExtent, BigCubeExtent, -BigCubeExtent},
+      {BigCubeExtent, BigCubeExtent, -BigCubeExtent},
+      {-BigCubeExtent, -BigCubeExtent, BigCubeExtent},
+      {BigCubeExtent, -BigCubeExtent, BigCubeExtent},
+      {-BigCubeExtent, BigCubeExtent, BigCubeExtent},
+      {BigCubeExtent, BigCubeExtent, BigCubeExtent}};
+  for (int32 Index = 0; Index < 36; ++Index) {
+    LargeCoordinateMesh.Positions.Add(BigCubeCorners[Index % 8]);
+    LargeCoordinateMesh.Normals.Add(FVector3f::UpVector);
+    LargeCoordinateMesh.Indices.Add(uint32(Index));
+    LargeCoordinateMesh.TextureCoordinates[0].Add(FVector2f::ZeroVector);
+  }
+  TestNotNull(
+      TEXT("Large Cesium local coordinates use an encodable precision"),
+      BuildCesiumRuntimeNaniteRenderData(LargeCoordinateMesh).Get());
 
   FCesiumPrimitiveMeshData MultiClusterMesh = Mesh;
   MultiClusterMesh.Indices.Reset();
@@ -486,6 +537,15 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
         EAutomationTestFlags::ProductFilter);
 
 bool FCesiumRuntimeNaniteStaticMesh::RunTest(const FString&) {
+  const UMaterial* pBaseMaterial = LoadObject<UMaterial>(
+      nullptr,
+      TEXT("/CesiumForUnreal/Materials/M_CesiumBaseMaterial."
+           "M_CesiumBaseMaterial"));
+  TestNotNull(TEXT("Cesium base material is available"), pBaseMaterial);
+  TestTrue(
+      TEXT("Cesium base material supports Nanite"),
+      pBaseMaterial && pBaseMaterial->GetUsageByFlag(MATUSAGE_Nanite));
+
   FCesiumPrimitiveMeshData Mesh;
   Mesh.Positions = {
       FVector3f::ZeroVector,

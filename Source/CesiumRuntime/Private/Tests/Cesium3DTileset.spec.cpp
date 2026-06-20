@@ -97,7 +97,9 @@ IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     "Cesium.Unit.3DTileset.PhysicsWithSmallScale",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter);
 
-static void setupForPhysicsWithSmallScale(SceneGenerationContext& context) {
+static void setupForPhysicsWithSmallScaleInternal(
+    SceneGenerationContext& context,
+    bool bEnableRuntimeNanite) {
   context.setCommonProperties(
       FVector(21.16677692, -67.38013505, -6375355.1944),
       FVector(-12, -1300, -5),
@@ -132,6 +134,10 @@ static void setupForPhysicsWithSmallScale(SceneGenerationContext& context) {
           .c_str());
 
   ACesium3DTileset* tileset = context.world->SpawnActor<ACesium3DTileset>();
+  if (bEnableRuntimeNanite) {
+    tileset->SetEnableRuntimeNanite(true);
+    tileset->SetRuntimeNaniteMinimumTriangleCount(0);
+  }
   tileset->SetTilesetSource(ETilesetSource::FromUrl);
   tileset->SetUrl(TEXT("file://") + tilesetUriPath);
   tileset->SetActorScale3D(FVector(0.00001));
@@ -153,6 +159,10 @@ static void setupForPhysicsWithSmallScale(SceneGenerationContext& context) {
 
   ADirectionalLight* Light = context.world->SpawnActor<ADirectionalLight>();
   Light->SetActorRotation(FQuat::MakeFromEuler(FVector(0, 0, 270)));
+}
+
+static void setupForPhysicsWithSmallScale(SceneGenerationContext& context) {
+  setupForPhysicsWithSmallScaleInternal(context, false);
 }
 
 bool checkPhysics(
@@ -184,6 +194,60 @@ bool FCesium3DTilesetPhysicsWithSmallScale::RunTest(const FString& Parameters) {
       GetBeautifiedTestName(),
       setupForPhysicsWithSmallScale,
       testPasses,
+      TEST_SCREEN_WIDTH,
+      TEST_SCREEN_HEIGHT);
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FCesium3DTilesetRuntimeNanitePhysics,
+    "Cesium.Unit.RuntimeNanite.Physics",
+    EAutomationTestFlags::EditorContext |
+        EAutomationTestFlags::ProductFilter |
+        EAutomationTestFlags::NonNullRHI);
+
+static void setupForRuntimeNanitePhysics(SceneGenerationContext& context) {
+  setupForPhysicsWithSmallScaleInternal(context, true);
+}
+
+static bool checkRuntimeNanitePhysics(
+    SceneGenerationContext& creationContext,
+    SceneGenerationContext& playContext,
+    TestPass::TestingParameter parameter) {
+  FHitResult Hit;
+  const FVector LookDirection =
+      playContext.pawn->GetViewRotation().RotateVector(FVector::XAxisVector);
+  if (!UKismetSystemLibrary::LineTraceSingle(
+          playContext.world,
+          playContext.pawn->GetPawnViewLocation(),
+          playContext.pawn->GetPawnViewLocation() +
+              LookDirection * 100000.0,
+          ETraceTypeQuery::TraceTypeQuery1,
+          true,
+          {},
+          EDrawDebugTrace::Persistent,
+          Hit,
+          true)) {
+    return false;
+  }
+
+  const UStaticMeshComponent* pStaticMeshComponent =
+      Cast<UStaticMeshComponent>(Hit.Component.Get());
+  const UStaticMesh* pStaticMesh =
+      pStaticMeshComponent ? pStaticMeshComponent->GetStaticMesh() : nullptr;
+  return Hit.FaceIndex >= 0 && pStaticMesh &&
+         pStaticMesh->HasValidNaniteData();
+}
+
+bool FCesium3DTilesetRuntimeNanitePhysics::RunTest(
+    const FString& Parameters) {
+  std::vector<TestPass> TestPasses;
+  TestPasses.push_back(
+      TestPass{"Runtime Nanite Physics", tilesetPass, checkRuntimeNanitePhysics});
+
+  return RunLoadTest(
+      GetBeautifiedTestName(),
+      setupForRuntimeNanitePhysics,
+      TestPasses,
       TEST_SCREEN_WIDTH,
       TEST_SCREEN_HEIGHT);
 }

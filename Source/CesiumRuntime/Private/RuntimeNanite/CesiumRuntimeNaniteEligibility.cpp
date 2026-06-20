@@ -33,6 +33,42 @@ FCesiumRuntimeNaniteEligibilityResult Ineligible(
 
 } // namespace
 
+const TCHAR* LexToString(
+    ECesiumRuntimeNaniteFallbackReason Reason) {
+  switch (Reason) {
+  case ECesiumRuntimeNaniteFallbackReason::None:
+    return TEXT("None");
+  case ECesiumRuntimeNaniteFallbackReason::DisabledByActor:
+    return TEXT("DisabledByActor");
+  case ECesiumRuntimeNaniteFallbackReason::DisabledGlobally:
+    return TEXT("DisabledGlobally");
+  case ECesiumRuntimeNaniteFallbackReason::UnsupportedPlatform:
+    return TEXT("UnsupportedPlatform");
+  case ECesiumRuntimeNaniteFallbackReason::UnsupportedPrimitiveMode:
+    return TEXT("UnsupportedPrimitiveMode");
+  case ECesiumRuntimeNaniteFallbackReason::TranslucentMaterial:
+    return TEXT("TranslucentMaterial");
+  case ECesiumRuntimeNaniteFallbackReason::InvalidPositions:
+    return TEXT("InvalidPositions");
+  case ECesiumRuntimeNaniteFallbackReason::InvalidIndices:
+    return TEXT("InvalidIndices");
+  case ECesiumRuntimeNaniteFallbackReason::InvalidNormals:
+    return TEXT("InvalidNormals");
+  case ECesiumRuntimeNaniteFallbackReason::BelowTriangleThreshold:
+    return TEXT("BelowTriangleThreshold");
+  case ECesiumRuntimeNaniteFallbackReason::TooManyTextureCoordinates:
+    return TEXT("TooManyTextureCoordinates");
+  case ECesiumRuntimeNaniteFallbackReason::EncodingLimitExceeded:
+    return TEXT("EncodingLimitExceeded");
+  case ECesiumRuntimeNaniteFallbackReason::BuilderFailed:
+    return TEXT("BuilderFailed");
+  case ECesiumRuntimeNaniteFallbackReason::ResourceInitializationFailed:
+    return TEXT("ResourceInitializationFailed");
+  default:
+    return TEXT("Unknown");
+  }
+}
+
 FCesiumRuntimeNaniteEligibilityResult
 EvaluateCesiumRuntimeNaniteEligibility(
     const FCesiumRuntimeNaniteEligibilityInput& Input) {

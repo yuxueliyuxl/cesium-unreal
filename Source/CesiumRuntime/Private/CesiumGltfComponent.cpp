@@ -1520,8 +1520,8 @@ static void loadPrimitive(
         glm::vec3(transform * glm::dvec4(maxPosition - minPosition, 0));
 
     FBox aaBox(
-        FVector3d(minPosition.x, -minPosition.y, minPosition.z),
-        FVector3d(maxPosition.x, -maxPosition.y, maxPosition.z));
+        FVector3d(minPosition.x, -maxPosition.y, minPosition.z),
+        FVector3d(maxPosition.x, -minPosition.y, maxPosition.z));
 
     aaBox.GetCenterAndExtents(
         pRenderData->Bounds.Origin,
@@ -1655,6 +1655,16 @@ static void loadPrimitive(
   // precision when using 16-bit floats.
   vertexBuffer.SetUseFullPrecisionUVs(true);
   vertexBuffer.Init(numVertices, numberOfTextureCoordinates, false);
+  for (uint32 VertexIndex = 0; VertexIndex < numVertices; ++VertexIndex) {
+    for (uint32 TextureCoordinateIndex = 0;
+         TextureCoordinateIndex < numberOfTextureCoordinates;
+         ++TextureCoordinateIndex) {
+      vertexBuffer.SetVertexUV(
+          VertexIndex,
+          TextureCoordinateIndex,
+          FVector2f::ZeroVector);
+    }
+  }
 
   {
     TRACE_CPUPROFILER_EVENT_SCOPE(Cesium::loadTextures)
@@ -1839,6 +1849,22 @@ static void loadPrimitive(
   primitiveResult.RenderPath = RenderDataSelection.RenderPath;
   primitiveResult.NaniteFallbackReason =
       RenderDataSelection.FallbackReason;
+  if (RuntimeNaniteSettings.bLogFallbacks &&
+      RenderDataSelection.RenderPath ==
+          ECesiumPrimitiveRenderPath::Legacy) {
+    UE_LOG(
+        LogCesium,
+        Display,
+        TEXT(
+            "Runtime Nanite fallback: %s; vertices=%d triangles=%d UVs=%d "
+            "boundsOrigin=%s boundsExtent=%s"),
+        LexToString(RenderDataSelection.FallbackReason),
+        primitiveResult.pPrimitiveMeshData->Positions.Num(),
+        primitiveResult.pPrimitiveMeshData->Indices.Num() / 3,
+        primitiveResult.pPrimitiveMeshData->TextureCoordinates.Num(),
+        *primitiveResult.pPrimitiveMeshData->Bounds.Origin.ToString(),
+        *primitiveResult.pPrimitiveMeshData->Bounds.BoxExtent.ToString());
+  }
   primitiveResult.pRenderData =
       MoveTemp(RenderDataSelection.RenderData);
   primitiveResult.pCollisionMesh = nullptr;

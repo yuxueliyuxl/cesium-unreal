@@ -74,6 +74,51 @@ FBox3f GetBounds(const TArray<FVector3f>& Positions) {
   return Bounds;
 }
 
+bool CanEncodeBounds(const FBox3f& Bounds, int32 PositionPrecision) {
+  const double Scale = FMath::Exp2(double(PositionPrecision));
+  const double MinX = FMath::FloorToDouble(Bounds.Min.X * Scale);
+  const double MinY = FMath::FloorToDouble(Bounds.Min.Y * Scale);
+  const double MinZ = FMath::FloorToDouble(Bounds.Min.Z * Scale);
+  const double MaxX = FMath::CeilToDouble(Bounds.Max.X * Scale);
+  const double MaxY = FMath::CeilToDouble(Bounds.Max.Y * Scale);
+  const double MaxZ = FMath::CeilToDouble(Bounds.Max.Z * Scale);
+  constexpr double MaxQuantizedValue =
+      double((1 << NANITE_MAX_POSITION_QUANTIZATION_BITS) - 1);
+
+  return MinX >= double(MIN_int32) && MinY >= double(MIN_int32) &&
+         MinZ >= double(MIN_int32) && MaxX <= double(MAX_int32) &&
+         MaxY <= double(MAX_int32) && MaxZ <= double(MAX_int32) &&
+         MaxX - MinX <= MaxQuantizedValue &&
+         MaxY - MinY <= MaxQuantizedValue &&
+         MaxZ - MinZ <= MaxQuantizedValue;
+}
+
+TOptional<int32> ResolvePositionPrecision(
+    const TArray<TUniquePtr<FCesiumRuntimeNaniteCluster>>& Clusters,
+    int32 RequestedPrecision) {
+  int32 PositionPrecision = FMath::Clamp(
+      RequestedPrecision,
+      NANITE_MIN_POSITION_PRECISION,
+      NANITE_MAX_POSITION_PRECISION);
+  while (PositionPrecision >= NANITE_MIN_POSITION_PRECISION) {
+    bool bAllClustersEncodable = true;
+    for (const TUniquePtr<FCesiumRuntimeNaniteCluster>& Cluster :
+         Clusters) {
+      if (!CanEncodeBounds(
+              GetBounds(Cluster->Positions),
+              PositionPrecision)) {
+        bAllClustersEncodable = false;
+        break;
+      }
+    }
+    if (bAllClustersEncodable) {
+      return PositionPrecision;
+    }
+    --PositionPrecision;
+  }
+  return {};
+}
+
 bool ValidateMesh(const FCesiumPrimitiveMeshData& Mesh) {
   if (Mesh.Positions.IsEmpty() ||
       Mesh.Normals.Num() != Mesh.Positions.Num() ||
@@ -877,6 +922,12 @@ BuildCesiumRuntimeNaniteRenderData(
 
   TArray<TUniquePtr<FCesiumRuntimeNaniteCluster>> Clusters =
       CreateClusters(Mesh);
+  const TOptional<int32> ResolvedPositionPrecision =
+      ResolvePositionPrecision(Clusters, PositionPrecision);
+  if (!ResolvedPositionPrecision.IsSet()) {
+    return nullptr;
+  }
+  PositionPrecision = ResolvedPositionPrecision.GetValue();
   const FBox3f Bounds = GetBounds(Mesh.Positions);
   Nanite::FResources Resources;
   if (!BuildResources(

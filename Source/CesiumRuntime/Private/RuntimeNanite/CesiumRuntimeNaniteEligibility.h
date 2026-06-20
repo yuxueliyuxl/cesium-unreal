@@ -4,6 +4,9 @@
 
 #include "RuntimeNanite/CesiumRuntimeNaniteTypes.h"
 
+const TCHAR* LexToString(
+    ECesiumRuntimeNaniteFallbackReason Reason);
+
 FCesiumRuntimeNaniteEligibilityResult
 EvaluateCesiumRuntimeNaniteEligibility(
     const FCesiumRuntimeNaniteEligibilityInput& Input);
