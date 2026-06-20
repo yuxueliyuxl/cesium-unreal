@@ -4,6 +4,7 @@
 
 #include "Cesium3DTileset.h"
 #include "Misc/AutomationTest.h"
+#include "RuntimeNanite/CesiumRuntimeNaniteBuilder.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteEncoding.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteEligibility.h"
 
@@ -170,6 +171,100 @@ bool FCesiumRuntimeNaniteEncoding::RunTest(const FString&) {
           CesiumRuntimeNaniteEncodeUVFloat(0.0f) &&
           CesiumRuntimeNaniteEncodeUVFloat(0.0f) <
               CesiumRuntimeNaniteEncodeUVFloat(1.0f));
+  return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FCesiumRuntimeNaniteBuilder,
+    "Cesium.Unit.RuntimeNanite.Builder",
+    EAutomationTestFlags::EditorContext |
+        EAutomationTestFlags::ProductFilter);
+
+bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
+  FCesiumRuntimeNaniteMeshData Mesh;
+  Mesh.Positions = {
+      FVector3f(0.0f, 0.0f, 0.0f),
+      FVector3f(100.0f, 0.0f, 0.0f),
+      FVector3f(0.0f, 100.0f, 0.0f)};
+  Mesh.Normals.Init(FVector3f::UpVector, 3);
+  Mesh.Indices = {0, 1, 2};
+
+  TUniquePtr<FStaticMeshRenderData> RenderData =
+      BuildCesiumRuntimeNaniteRenderData(Mesh);
+  TestNotNull(TEXT("Nanite render data is created"), RenderData.Get());
+  TestTrue(
+      TEXT("Nanite resources are valid"),
+      RenderData && RenderData->NaniteResourcesPtr.IsValid());
+  TestTrue(
+      TEXT("Root page data is populated"),
+      RenderData && RenderData->NaniteResourcesPtr.IsValid() &&
+          !RenderData->NaniteResourcesPtr->RootData.IsEmpty());
+  TestEqual(
+      TEXT("Input triangle count is retained"),
+      RenderData && RenderData->NaniteResourcesPtr.IsValid()
+          ? RenderData->NaniteResourcesPtr->NumInputTriangles
+          : 0u,
+      uint32(1));
+
+  FCesiumRuntimeNaniteMeshData MultiClusterMesh = Mesh;
+  MultiClusterMesh.Indices.Reset();
+  for (int32 Triangle = 0; Triangle < 90; ++Triangle) {
+    MultiClusterMesh.Indices.Append({0, 1, 2});
+  }
+  TUniquePtr<FStaticMeshRenderData> MultiClusterRenderData =
+      BuildCesiumRuntimeNaniteRenderData(MultiClusterMesh);
+  TestTrue(
+      TEXT("Mesh crossing the cluster vertex limit creates multiple clusters"),
+      MultiClusterRenderData &&
+          MultiClusterRenderData->NaniteResourcesPtr.IsValid() &&
+          MultiClusterRenderData->NaniteResourcesPtr->NumClusters > 1);
+  TestEqual(
+      TEXT("Multi-cluster input triangle count is retained"),
+      MultiClusterRenderData &&
+              MultiClusterRenderData->NaniteResourcesPtr.IsValid()
+          ? MultiClusterRenderData->NaniteResourcesPtr->NumInputTriangles
+          : 0u,
+      uint32(90));
+
+  FCesiumRuntimeNaniteMeshData Invalid = Mesh;
+  Invalid.Positions.Reset();
+  TestNull(
+      TEXT("Empty positions fail safely"),
+      BuildCesiumRuntimeNaniteRenderData(Invalid).Get());
+
+  Invalid = Mesh;
+  Invalid.Normals.Pop();
+  TestNull(
+      TEXT("Mismatched normals fail safely"),
+      BuildCesiumRuntimeNaniteRenderData(Invalid).Get());
+
+  Invalid = Mesh;
+  Invalid.Indices.Pop();
+  TestNull(
+      TEXT("Non-triangle indices fail safely"),
+      BuildCesiumRuntimeNaniteRenderData(Invalid).Get());
+
+  Invalid = Mesh;
+  Invalid.Indices[2] = 3;
+  TestNull(
+      TEXT("Out-of-range indices fail safely"),
+      BuildCesiumRuntimeNaniteRenderData(Invalid).Get());
+
+  Invalid = Mesh;
+  Invalid.TextureCoordinates.AddDefaulted();
+  Invalid.TextureCoordinates[0].SetNum(2);
+  TestNull(
+      TEXT("Mismatched texture coordinates fail safely"),
+      BuildCesiumRuntimeNaniteRenderData(Invalid).Get());
+
+  Invalid = Mesh;
+  Invalid.TextureCoordinates.SetNum(NANITE_MAX_UVS + 1);
+  for (TArray<FVector2f>& TextureCoordinates : Invalid.TextureCoordinates) {
+    TextureCoordinates.SetNum(3);
+  }
+  TestNull(
+      TEXT("Too many texture coordinates fail safely"),
+      BuildCesiumRuntimeNaniteRenderData(Invalid).Get());
   return true;
 }
 

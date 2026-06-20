@@ -5,6 +5,15 @@
 #include "CoreMinimal.h"
 #include "NaniteDefinitions.h"
 
+struct FCesiumRuntimeNaniteMeshData {
+  TArray<FVector3f> Positions;
+  TArray<FVector3f> Normals;
+  TArray<FColor> Colors;
+  TArray<TArray<FVector2f>> TextureCoordinates;
+  TArray<uint32> Indices;
+  FBoxSphereBounds Bounds = FBoxSphereBounds(EForceInit::ForceInit);
+};
+
 enum class ECesiumRuntimeNaniteFallbackReason : uint8 {
   None,
   DisabledByActor,
