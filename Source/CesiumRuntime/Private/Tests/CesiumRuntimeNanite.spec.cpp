@@ -4,6 +4,7 @@
 
 #include "Cesium3DTileset.h"
 #include "Misc/AutomationTest.h"
+#include "RuntimeNanite/CesiumRuntimeNaniteEncoding.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteEligibility.h"
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
@@ -120,6 +121,55 @@ bool FCesiumRuntimeNaniteEligibility::RunTest(const FString&) {
       TEXT("Eligible input has no fallback"),
       Result.FallbackReason,
       ECesiumRuntimeNaniteFallbackReason::None);
+  return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FCesiumRuntimeNaniteEncoding,
+    "Cesium.Unit.RuntimeNanite.Encoding",
+    EAutomationTestFlags::EditorContext |
+        EAutomationTestFlags::ProductFilter);
+
+bool FCesiumRuntimeNaniteEncoding::RunTest(const FString&) {
+  const FCesiumRuntimeNaniteOctahedron Encoded =
+      FCesiumRuntimeNaniteOctahedron::Encode(FVector3f::UpVector);
+
+  TestTrue(TEXT("Encoded normal is valid"), Encoded.IsValid());
+  TestTrue(
+      TEXT("Decoded normal points up"),
+      Encoded.Decode().Equals(FVector3f::UpVector, 0.02f));
+
+  const FCesiumRuntimeNanitePageSections Sections{
+      .Cluster = 64,
+      .MaterialTable = 3,
+      .DecodeInfo = 5,
+      .Index = 12,
+      .Position = 16,
+      .Attribute = 20};
+  const FCesiumRuntimeNanitePageSections Offsets = Sections.GetOffsets();
+  TestEqual(
+      TEXT("Cluster data follows the GPU page header"),
+      Offsets.Cluster,
+      uint32(NANITE_GPU_PAGE_HEADER_SIZE));
+  TestEqual(
+      TEXT("Material table is aligned before following sections"),
+      Offsets.VertReuseBatchInfo,
+      Align(Offsets.MaterialTable + Sections.MaterialTable, 16u));
+
+  TestEqual(
+      TEXT("Zig-zag preserves zero"),
+      CesiumRuntimeNaniteEncodeZigZag(0),
+      uint32(0));
+  TestEqual(
+      TEXT("Zig-zag encodes negative one"),
+      CesiumRuntimeNaniteEncodeZigZag(-1),
+      uint32(1));
+  TestTrue(
+      TEXT("UV encoding preserves ordering"),
+      CesiumRuntimeNaniteEncodeUVFloat(-1.0f) <
+          CesiumRuntimeNaniteEncodeUVFloat(0.0f) &&
+          CesiumRuntimeNaniteEncodeUVFloat(0.0f) <
+              CesiumRuntimeNaniteEncodeUVFloat(1.0f));
   return true;
 }
 
