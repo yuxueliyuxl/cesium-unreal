@@ -39,6 +39,8 @@
 #include "PixelFormat.h"
 #include "Runtime/Launch/Resources/Version.h"
 #include "RuntimeNanite/CesiumPrimitiveMeshData.h"
+#include "RuntimeNanite/CesiumPrimitiveRenderPath.h"
+#include "RuntimeNanite/CesiumRuntimeNaniteBuilder.h"
 #include "StaticMeshOperations.h"
 #include "StaticMeshResources.h"
 #include "UObject/ConstructorHelpers.h"
@@ -1790,13 +1792,55 @@ static void loadPrimitive(
   primitiveResult.meshIndex = options.pMeshOptions->meshIndex;
   primitiveResult.primitiveIndex = options.primitiveIndex;
   primitiveResult.pPrimitiveMeshData =
-      MakeUnique<FCesiumPrimitiveMeshData>(
-          ExtractCesiumPrimitiveMeshData(
-              LODResources.VertexBuffers,
-              indices,
-              pRenderData->Bounds,
-              LODResources.bHasColorVertexData));
-  primitiveResult.pRenderData = std::move(pRenderData);
+      MakeUnique<FCesiumPrimitiveMeshData>(ExtractCesiumPrimitiveMeshData(
+          LODResources.VertexBuffers,
+          indices,
+          pRenderData->Bounds,
+          LODResources.bHasColorVertexData));
+
+  const FCesiumRuntimeNaniteRuntimeSettings RuntimeNaniteSettings =
+      GetCesiumRuntimeNaniteRuntimeSettings(
+          modelOptions.enableRuntimeNanite,
+          modelOptions.runtimeNaniteMinimumTriangleCount);
+  FCesiumRuntimeNaniteEligibilityInput NaniteEligibilityInput;
+  NaniteEligibilityInput.bActorEnabled =
+      RuntimeNaniteSettings.bActorEnabled;
+  NaniteEligibilityInput.bGlobalEnabled =
+      RuntimeNaniteSettings.bGlobalEnabled;
+  NaniteEligibilityInput.bPlatformSupported =
+      RuntimeNaniteSettings.bPlatformSupported;
+  NaniteEligibilityInput.bIsTriangleList =
+      primitive.mode == CesiumGltf::MeshPrimitive::Mode::TRIANGLES;
+  NaniteEligibilityInput.bIsTranslucent =
+      material.alphaMode == CesiumGltf::Material::AlphaMode::BLEND;
+  NaniteEligibilityInput.bHasValidPositions =
+      !primitiveResult.pPrimitiveMeshData->Positions.IsEmpty();
+  NaniteEligibilityInput.bHasValidIndices =
+      !primitiveResult.pPrimitiveMeshData->Indices.IsEmpty() &&
+      primitiveResult.pPrimitiveMeshData->Indices.Num() % 3 == 0;
+  NaniteEligibilityInput.bHasValidNormals =
+      primitiveResult.pPrimitiveMeshData->Normals.Num() ==
+      primitiveResult.pPrimitiveMeshData->Positions.Num();
+  NaniteEligibilityInput.TriangleCount =
+      primitiveResult.pPrimitiveMeshData->Indices.Num() / 3;
+  NaniteEligibilityInput.MinimumTriangleCount =
+      RuntimeNaniteSettings.MinimumTriangleCount;
+  NaniteEligibilityInput.NumTextureCoordinates =
+      primitiveResult.pPrimitiveMeshData->TextureCoordinates.Num();
+
+  FCesiumPrimitiveRenderDataSelection RenderDataSelection =
+      SelectCesiumPrimitiveRenderData(
+          *primitiveResult.pPrimitiveMeshData,
+          NaniteEligibilityInput,
+          MoveTemp(pRenderData),
+          [](const FCesiumPrimitiveMeshData& MeshData) {
+            return BuildCesiumRuntimeNaniteRenderData(MeshData);
+          });
+  primitiveResult.RenderPath = RenderDataSelection.RenderPath;
+  primitiveResult.NaniteFallbackReason =
+      RenderDataSelection.FallbackReason;
+  primitiveResult.pRenderData =
+      MoveTemp(RenderDataSelection.RenderData);
   primitiveResult.pCollisionMesh = nullptr;
   primitiveResult.transform =
       transform * yInvertMatrix * CesiumPrimitiveData::positionScaleMatrix;
@@ -3663,13 +3707,15 @@ UStaticMesh* createStaticMesh(
   TRACE_CPUPROFILER_EVENT_SCOPE(Cesium::SetupMesh)
 
   auto* pStaticMesh = NewObject<UStaticMesh>(pMeshComponent, componentName);
+  const bool bHasRuntimeNaniteData =
+      HasCesiumRuntimeNaniteData(pRenderData.Get());
   // Unreal will crash trying to generate ray tracing information for a
   // static mesh without triangles (and it doesn't make sense anyways!)
   switch (primitiveMode) {
   case CesiumGltf::MeshPrimitive::Mode::TRIANGLES:
   case CesiumGltf::MeshPrimitive::Mode::TRIANGLE_FAN:
   case CesiumGltf::MeshPrimitive::Mode::TRIANGLE_STRIP:
-    pStaticMesh->bSupportRayTracing = true;
+    pStaticMesh->bSupportRayTracing = !bHasRuntimeNaniteData;
     break;
   default:
     pStaticMesh->bSupportRayTracing = false;
@@ -3682,6 +3728,11 @@ UStaticMesh* createStaticMesh(
   pStaticMesh->NeverStream = true;
 
   pStaticMesh->SetRenderData(std::move(pRenderData));
+#if WITH_EDITOR
+  if (bHasRuntimeNaniteData) {
+    pStaticMesh->GetNaniteSettings().bEnabled = true;
+  }
+#endif
 
   return pStaticMesh;
 }

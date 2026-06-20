@@ -16,7 +16,7 @@
 #include "Containers/UnrealString.h"
 #include "EncodedFeaturesMetadata.h"
 #include "Math/TransformNonVectorized.h"
-#include "RuntimeNanite/CesiumRuntimeNaniteTypes.h"
+#include "RuntimeNanite/CesiumPrimitiveRenderPath.h"
 #include "StaticMeshResources.h"
 #include "Templates/SharedPointer.h"
 
@@ -59,6 +59,11 @@ struct LoadedPrimitiveResult {
    * Nanite rendering paths.
    */
   TUniquePtr<FCesiumPrimitiveMeshData> pPrimitiveMeshData = nullptr;
+
+  ECesiumPrimitiveRenderPath RenderPath =
+      ECesiumPrimitiveRenderPath::Legacy;
+  ECesiumRuntimeNaniteFallbackReason NaniteFallbackReason =
+      ECesiumRuntimeNaniteFallbackReason::DisabledByActor;
 
   /**
    * Data for rendering a Gaussian splats. Used instead of `RenderData` when the

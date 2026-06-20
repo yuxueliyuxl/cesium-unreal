@@ -4,6 +4,7 @@
 
 #include "Cesium3DTileset.h"
 #include "RuntimeNanite/CesiumPrimitiveMeshData.h"
+#include "RuntimeNanite/CesiumPrimitiveRenderPath.h"
 #include "Misc/AutomationTest.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteBuilder.h"
 #include "RuntimeNanite/CesiumRuntimeNaniteEncoding.h"
@@ -334,6 +335,147 @@ bool FCesiumPrimitiveMeshDataExtraction::RunTest(const FString&) {
       Mesh.Colors[2],
       FColor(12, 22, 32, 255));
   TestEqual(TEXT("Bounds are retained"), Mesh.Bounds, Bounds);
+  return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FCesiumPrimitiveRenderPathSelection,
+    "Cesium.Unit.RuntimeNanite.RenderPath",
+    EAutomationTestFlags::EditorContext |
+        EAutomationTestFlags::ProductFilter);
+
+bool FCesiumPrimitiveRenderPathSelection::RunTest(const FString&) {
+  FCesiumPrimitiveMeshData Mesh;
+  Mesh.Positions = {
+      FVector3f::ZeroVector,
+      FVector3f::ForwardVector,
+      FVector3f::RightVector};
+  Mesh.Normals.Init(FVector3f::UpVector, 3);
+  Mesh.Indices = {0, 1, 2};
+
+  FCesiumRuntimeNaniteEligibilityInput Input;
+  Input.bActorEnabled = true;
+  Input.bGlobalEnabled = true;
+  Input.bPlatformSupported = true;
+  Input.bIsTriangleList = true;
+  Input.bHasValidPositions = true;
+  Input.bHasValidIndices = true;
+  Input.bHasValidNormals = true;
+  Input.TriangleCount = 1;
+  Input.MinimumTriangleCount = 1;
+
+  const auto MakeLegacy = []() {
+    return MakeUnique<FStaticMeshRenderData>();
+  };
+  const auto BuildNanite =
+      [](const FCesiumPrimitiveMeshData& InMesh) {
+        return BuildCesiumRuntimeNaniteRenderData(InMesh);
+      };
+
+  TUniquePtr<FStaticMeshRenderData> EmptyRenderData = MakeLegacy();
+  TestFalse(
+      TEXT("An allocated Nanite resources Pimpl is not valid Nanite data"),
+      HasCesiumRuntimeNaniteData(EmptyRenderData.Get()));
+
+  TUniquePtr<FStaticMeshRenderData> BuiltNaniteRenderData =
+      BuildNanite(Mesh);
+  TestTrue(
+      TEXT("Builder output is recognized as valid Nanite data"),
+      HasCesiumRuntimeNaniteData(BuiltNaniteRenderData.Get()));
+
+  Input.bActorEnabled = false;
+  FCesiumPrimitiveRenderDataSelection Selection =
+      SelectCesiumPrimitiveRenderData(
+          Mesh,
+          Input,
+          MakeLegacy(),
+          BuildNanite);
+  TestEqual(
+      TEXT("Disabled actor selects Legacy"),
+      Selection.RenderPath,
+      ECesiumPrimitiveRenderPath::Legacy);
+  TestEqual(
+      TEXT("Disabled actor reason is retained"),
+      Selection.FallbackReason,
+      ECesiumRuntimeNaniteFallbackReason::DisabledByActor);
+
+  Input.bActorEnabled = true;
+  Input.TriangleCount = 0;
+  Selection = SelectCesiumPrimitiveRenderData(
+      Mesh,
+      Input,
+      MakeLegacy(),
+      BuildNanite);
+  TestEqual(
+      TEXT("Below threshold selects Legacy"),
+      Selection.RenderPath,
+      ECesiumPrimitiveRenderPath::Legacy);
+  TestEqual(
+      TEXT("Threshold reason is retained"),
+      Selection.FallbackReason,
+      ECesiumRuntimeNaniteFallbackReason::BelowTriangleThreshold);
+
+  Input.TriangleCount = 1;
+  Input.bIsTranslucent = true;
+  Selection = SelectCesiumPrimitiveRenderData(
+      Mesh,
+      Input,
+      MakeLegacy(),
+      BuildNanite);
+  TestEqual(
+      TEXT("Translucent material selects Legacy"),
+      Selection.RenderPath,
+      ECesiumPrimitiveRenderPath::Legacy);
+
+  Input.bIsTranslucent = false;
+  Input.bIsTriangleList = false;
+  Selection = SelectCesiumPrimitiveRenderData(
+      Mesh,
+      Input,
+      MakeLegacy(),
+      BuildNanite);
+  TestEqual(
+      TEXT("Non-triangle list selects Legacy"),
+      Selection.RenderPath,
+      ECesiumPrimitiveRenderPath::Legacy);
+
+  Input.bIsTriangleList = true;
+  Selection = SelectCesiumPrimitiveRenderData(
+      Mesh,
+      Input,
+      MakeLegacy(),
+      [](const FCesiumPrimitiveMeshData&) {
+        return TUniquePtr<FStaticMeshRenderData>();
+      });
+  TestEqual(
+      TEXT("Builder failure selects Legacy"),
+      Selection.RenderPath,
+      ECesiumPrimitiveRenderPath::Legacy);
+  TestEqual(
+      TEXT("Builder failure reason is retained"),
+      Selection.FallbackReason,
+      ECesiumRuntimeNaniteFallbackReason::BuilderFailed);
+  TestNotNull(
+      TEXT("Builder failure retains Legacy render data"),
+      Selection.RenderData.Get());
+
+  Selection = SelectCesiumPrimitiveRenderData(
+      Mesh,
+      Input,
+      MakeLegacy(),
+      BuildNanite);
+  TestEqual(
+      TEXT("Eligible mesh selects runtime Nanite"),
+      Selection.RenderPath,
+      ECesiumPrimitiveRenderPath::RuntimeNanite);
+  TestEqual(
+      TEXT("Successful Nanite has no fallback"),
+      Selection.FallbackReason,
+      ECesiumRuntimeNaniteFallbackReason::None);
+  TestTrue(
+      TEXT("Selected render data contains Nanite resources"),
+      Selection.RenderData &&
+          Selection.RenderData->NaniteResourcesPtr.IsValid());
   return true;
 }
 
