@@ -479,4 +479,57 @@ bool FCesiumPrimitiveRenderPathSelection::RunTest(const FString&) {
   return true;
 }
 
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FCesiumRuntimeNaniteStaticMesh,
+    "Cesium.Unit.RuntimeNanite.StaticMesh",
+    EAutomationTestFlags::EditorContext |
+        EAutomationTestFlags::ProductFilter);
+
+bool FCesiumRuntimeNaniteStaticMesh::RunTest(const FString&) {
+  FCesiumPrimitiveMeshData Mesh;
+  Mesh.Positions = {
+      FVector3f::ZeroVector,
+      FVector3f::ForwardVector,
+      FVector3f::RightVector};
+  Mesh.Normals.Init(FVector3f::UpVector, 3);
+  Mesh.Indices = {0, 1, 2};
+
+  UStaticMesh* pStaticMesh =
+      NewObject<UStaticMesh>(GetTransientPackage());
+  pStaticMesh->bSupportRayTracing = true;
+  pStaticMesh->SetRenderData(
+      BuildCesiumRuntimeNaniteRenderData(Mesh));
+
+  ConfigureCesiumPrimitiveRenderPath(
+      *pStaticMesh,
+      ECesiumPrimitiveRenderPath::RuntimeNanite);
+
+  TestTrue(
+      TEXT("Static mesh has valid Nanite data"),
+      pStaticMesh->HasValidNaniteData());
+  TestFalse(
+      TEXT("Runtime Nanite disables ray tracing"),
+      pStaticMesh->bSupportRayTracing);
+  TestTrue(
+      TEXT("Runtime Nanite setting is enabled"),
+      pStaticMesh->GetNaniteSettings().bEnabled);
+
+  pStaticMesh->InitResources();
+  pStaticMesh = nullptr;
+
+  for (int32 Index = 0; Index < 2; ++Index) {
+    UStaticMesh* pAdditionalMesh =
+        NewObject<UStaticMesh>(GetTransientPackage());
+    pAdditionalMesh->SetRenderData(
+        BuildCesiumRuntimeNaniteRenderData(Mesh));
+    ConfigureCesiumPrimitiveRenderPath(
+        *pAdditionalMesh,
+        ECesiumPrimitiveRenderPath::RuntimeNanite);
+    pAdditionalMesh->InitResources();
+  }
+
+  CollectGarbage(RF_NoFlags);
+  return true;
+}
+
 #endif

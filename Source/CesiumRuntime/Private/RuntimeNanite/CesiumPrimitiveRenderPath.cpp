@@ -2,9 +2,24 @@
 
 #include "RuntimeNanite/CesiumPrimitiveRenderPath.h"
 
+#include "Engine/StaticMesh.h"
+
 bool HasCesiumRuntimeNaniteData(
     const FStaticMeshRenderData* pRenderData) {
   return pRenderData && pRenderData->HasValidNaniteData();
+}
+
+void ConfigureCesiumPrimitiveRenderPath(
+    UStaticMesh& StaticMesh,
+    ECesiumPrimitiveRenderPath RenderPath) {
+  if (RenderPath != ECesiumPrimitiveRenderPath::RuntimeNanite) {
+    return;
+  }
+
+  StaticMesh.bSupportRayTracing = false;
+#if WITH_EDITOR
+  StaticMesh.GetNaniteSettings().bEnabled = true;
+#endif
 }
 
 FCesiumPrimitiveRenderDataSelection SelectCesiumPrimitiveRenderData(

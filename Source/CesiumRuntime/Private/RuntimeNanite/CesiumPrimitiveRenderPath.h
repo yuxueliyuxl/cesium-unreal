@@ -6,6 +6,8 @@
 #include "StaticMeshResources.h"
 #include "Templates/Function.h"
 
+class UStaticMesh;
+
 enum class ECesiumPrimitiveRenderPath : uint8 {
   Legacy,
   RuntimeNanite
@@ -21,6 +23,10 @@ struct FCesiumPrimitiveRenderDataSelection {
 
 bool HasCesiumRuntimeNaniteData(
     const FStaticMeshRenderData* pRenderData);
+
+void ConfigureCesiumPrimitiveRenderPath(
+    UStaticMesh& StaticMesh,
+    ECesiumPrimitiveRenderPath RenderPath);
 
 FCesiumPrimitiveRenderDataSelection SelectCesiumPrimitiveRenderData(
     const FCesiumPrimitiveMeshData& Mesh,

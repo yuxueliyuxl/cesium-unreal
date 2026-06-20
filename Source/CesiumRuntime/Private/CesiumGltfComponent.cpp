@@ -3703,19 +3703,18 @@ UStaticMesh* createStaticMesh(
     UCesiumGltfComponent* pGltf,
     int32_t primitiveMode,
     const FName& componentName,
+    ECesiumPrimitiveRenderPath RenderPath,
     TUniquePtr<FStaticMeshRenderData>&& pRenderData) {
   TRACE_CPUPROFILER_EVENT_SCOPE(Cesium::SetupMesh)
 
   auto* pStaticMesh = NewObject<UStaticMesh>(pMeshComponent, componentName);
-  const bool bHasRuntimeNaniteData =
-      HasCesiumRuntimeNaniteData(pRenderData.Get());
   // Unreal will crash trying to generate ray tracing information for a
   // static mesh without triangles (and it doesn't make sense anyways!)
   switch (primitiveMode) {
   case CesiumGltf::MeshPrimitive::Mode::TRIANGLES:
   case CesiumGltf::MeshPrimitive::Mode::TRIANGLE_FAN:
   case CesiumGltf::MeshPrimitive::Mode::TRIANGLE_STRIP:
-    pStaticMesh->bSupportRayTracing = !bHasRuntimeNaniteData;
+    pStaticMesh->bSupportRayTracing = true;
     break;
   default:
     pStaticMesh->bSupportRayTracing = false;
@@ -3728,11 +3727,7 @@ UStaticMesh* createStaticMesh(
   pStaticMesh->NeverStream = true;
 
   pStaticMesh->SetRenderData(std::move(pRenderData));
-#if WITH_EDITOR
-  if (bHasRuntimeNaniteData) {
-    pStaticMesh->GetNaniteSettings().bEnabled = true;
-  }
-#endif
+  ConfigureCesiumPrimitiveRenderPath(*pStaticMesh, RenderPath);
 
   return pStaticMesh;
 }
@@ -3833,6 +3828,7 @@ static void loadPrimitiveGameThreadPart(
       pGltf,
       meshPrimitive.mode,
       componentName,
+      loadResult.RenderPath,
       std::move(loadResult.pRenderData));
 
   ICesium3DTilesetLifecycleEventReceiver* pLifecycleEventReceiver =
@@ -3907,6 +3903,7 @@ static void loadPrimitiveGameThreadPart(
         pGltf,
         CesiumGltf::MeshPrimitive::Mode::LINES,
         componentName,
+        ECesiumPrimitiveRenderPath::Legacy,
         std::move(loadResult.pEdgeRenderData));
 
     {
