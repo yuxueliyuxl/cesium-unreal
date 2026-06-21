@@ -278,6 +278,35 @@ bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
           ? MultiClusterRenderData->NaniteResourcesPtr->NumInputTriangles
           : 0u,
       uint32(90));
+  if (MultiClusterRenderData &&
+      MultiClusterRenderData->NaniteResourcesPtr.IsValid() &&
+      !MultiClusterRenderData->NaniteResourcesPtr
+           ->PageStreamingStates.IsEmpty()) {
+    const Nanite::FResources& Resources =
+        *MultiClusterRenderData->NaniteResourcesPtr;
+    const Nanite::FPageStreamingState& Page =
+        Resources.PageStreamingStates[0];
+    const int32 PageStart =
+        int32(Page.BulkOffset + Page.BulkSize - Page.PageSize);
+    const auto* pPageHeader =
+        reinterpret_cast<const FCesiumRuntimeNanitePageDiskHeader*>(
+            Resources.RootData.GetData() + PageStart);
+    const auto* pClusterHeaders =
+        reinterpret_cast<const FCesiumRuntimeNaniteClusterDiskHeader*>(
+            pPageHeader + 1);
+    const uint32 FirstClusterTriangleCount = FMath::Min3(
+        90u,
+        uint32(NANITE_MAX_CLUSTER_TRIANGLES),
+        uint32(NANITE_MAX_CLUSTER_VERTICES / 3));
+    const uint32 ExpectedCumulativeNewVertices =
+        (FMath::Min(FirstClusterTriangleCount, 96u) * 3u << 20) |
+        (FMath::Min(FirstClusterTriangleCount, 64u) * 3u << 10) |
+        (FMath::Min(FirstClusterTriangleCount, 32u) * 3u);
+    TestEqual(
+        TEXT("Clusters crossing 32 triangles encode cumulative new vertices"),
+        pClusterHeaders[0].NumPrevNewVerticesBeforeDwords,
+        ExpectedCumulativeNewVertices);
+  }
 
   FCesiumPrimitiveMeshData Invalid = Mesh;
   Invalid.Positions.Reset();

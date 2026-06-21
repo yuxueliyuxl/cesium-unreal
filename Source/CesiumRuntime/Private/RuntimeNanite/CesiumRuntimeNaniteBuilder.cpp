@@ -531,6 +531,18 @@ bool CreatePageData(
   for (int32 ClusterIndex = 0;
        ClusterIndex < Clusters.Num();
        ++ClusterIndex) {
+    const uint32 NumTriangles =
+        uint32(Clusters[ClusterIndex]->NumTriangles());
+    const uint32 NewVerticesBeforeDWord1 =
+        FMath::Min(NumTriangles, 32u) * 3u;
+    const uint32 NewVerticesBeforeDWord2 =
+        FMath::Min(NumTriangles, 64u) * 3u;
+    const uint32 NewVerticesBeforeDWord3 =
+        FMath::Min(NumTriangles, 96u) * 3u;
+    ClusterHeaders[ClusterIndex].NumPrevNewVerticesBeforeDwords =
+        (NewVerticesBeforeDWord3 << 20) |
+        (NewVerticesBeforeDWord2 << 10) |
+        NewVerticesBeforeDWord1;
     ClusterHeaders[ClusterIndex].IndexDataOffset = PageOffset();
   }
   AlignData(PageData, sizeof(uint32));
