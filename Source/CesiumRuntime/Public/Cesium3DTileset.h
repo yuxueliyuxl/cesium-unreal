@@ -12,6 +12,7 @@
 #include "CesiumGeoreference.h"
 #include "CesiumIonServer.h"
 #include "CesiumPointCloudShading.h"
+#include "CesiumRuntime.h"
 #include "CesiumSampleHeightResult.h"
 #include "CesiumVoxelMetadataComponent.h"
 #include "CoreMinimal.h"
@@ -86,6 +87,12 @@ enum class ETilesetSource : uint8 {
   FromCesiumIon UMETA(DisplayName = "From Cesium Ion"),
 
   /**
+   * The tileset will be loaded from one of the configured Holoveser services.
+   * IonAssetID selects the service.
+   */
+  FromHoloveser UMETA(DisplayName = "From Holoveser"),
+
+  /**
    * The tileset will be loaded from the specified Url.
    */
   FromUrl UMETA(DisplayName = "From Url"),
@@ -106,6 +113,14 @@ class CESIUMRUNTIME_API ACesium3DTileset : public AActor {
 public:
   ACesium3DTileset();
   virtual ~ACesium3DTileset();
+
+  virtual const std::shared_ptr<CesiumAsync::IAssetAccessor>&
+  GetAssetAccessor(ACesium3DTileset*) {
+    return getAssetAccessor();
+  }
+
+  virtual void SetTilesetContentOptions(
+      Cesium3DTilesSelection::TilesetContentOptions& InTilesetContentOptions) {}
 
 private:
   UPROPERTY(VisibleAnywhere, Category = "Cesium") USceneComponent* Root;
@@ -755,7 +770,8 @@ private:
       BlueprintSetter = SetIonAssetID,
       Category = "Cesium",
       meta =
-          (EditCondition = "TilesetSource==ETilesetSource::FromCesiumIon",
+          (EditCondition =
+               "TilesetSource==ETilesetSource::FromCesiumIon || TilesetSource==ETilesetSource::FromHoloveser",
            ClampMin = 0))
   int64 IonAssetID;
 
@@ -923,6 +939,28 @@ private:
       BlueprintSetter = SetEnableWaterMask,
       Category = "Cesium|Rendering")
   bool EnableWaterMask = false;
+
+  /**
+   * Scales quantized-mesh terrain heights. A value of 1.0 preserves the
+   * original terrain, 0.0 flattens it, values greater than 1.0 exaggerate it,
+   * and negative values invert it.
+   */
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintGetter = GetTerrainExaggeration,
+      BlueprintSetter = SetTerrainExaggeration,
+      Category = "Cesium|Terrain")
+  double TerrainExaggeration = 1.0;
+
+  /**
+   * Whether to ignore transform matrices declared by tileset JSON files.
+   */
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintGetter = GetIgnoreTransform,
+      BlueprintSetter = SetIgnoreTransform,
+      Category = "Cesium|Terrain")
+  bool IgnoreTransform = false;
 
   /**
    * Whether to ignore the KHR_materials_unlit extension on the glTF tiles in
@@ -1209,6 +1247,18 @@ public:
 
   UFUNCTION(BlueprintSetter, Category = "Cesium|Rendering")
   void SetEnableWaterMask(bool bEnableMask);
+
+  UFUNCTION(BlueprintGetter, Category = "Cesium|Terrain")
+  double GetTerrainExaggeration() const { return TerrainExaggeration; }
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium|Terrain")
+  void SetTerrainExaggeration(double InTerrainExaggeration);
+
+  UFUNCTION(BlueprintGetter, Category = "Cesium|Terrain")
+  bool GetIgnoreTransform() const { return IgnoreTransform; }
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium|Terrain")
+  void SetIgnoreTransform(bool bIgnoreTransform);
 
   UFUNCTION(BlueprintGetter, Category = "Cesium|Rendering")
   bool GetIgnoreKhrMaterialsUnlit() const { return IgnoreKhrMaterialsUnlit; }

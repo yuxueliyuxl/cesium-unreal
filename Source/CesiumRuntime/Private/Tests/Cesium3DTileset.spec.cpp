@@ -29,6 +29,40 @@ THIRD_PARTY_INCLUDES_END
 namespace Cesium {
 
 IMPLEMENT_SIMPLE_AUTOMATION_TEST(
+    FCesium3DTilesetCustomContentOptions,
+    "Cesium.Unit.3DTileset.CustomContentOptions",
+    EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter);
+
+bool FCesium3DTilesetCustomContentOptions::RunTest(const FString& Parameters) {
+  ACesium3DTileset* pTileset = NewObject<ACesium3DTileset>();
+  TestNotNull(TEXT("A tileset can be created"), pTileset);
+  if (!pTileset) {
+    return false;
+  }
+
+  TestEqual(
+      TEXT("Terrain exaggeration defaults to one"),
+      pTileset->GetTerrainExaggeration(),
+      1.0);
+  TestFalse(
+      TEXT("Ignore transform defaults to false"),
+      pTileset->GetIgnoreTransform());
+
+  pTileset->SetTerrainExaggeration(2.5);
+  pTileset->SetIgnoreTransform(true);
+
+  TestEqual(
+      TEXT("Terrain exaggeration can be changed"),
+      pTileset->GetTerrainExaggeration(),
+      2.5);
+  TestTrue(
+      TEXT("Ignore transform can be changed"),
+      pTileset->GetIgnoreTransform());
+
+  return true;
+}
+
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(
     FCesium3DTilesetSharedImages,
     "Cesium.Unit.3DTileset.SharedImages",
     EAutomationTestFlags::EditorContext | EAutomationTestFlags::ProductFilter);
