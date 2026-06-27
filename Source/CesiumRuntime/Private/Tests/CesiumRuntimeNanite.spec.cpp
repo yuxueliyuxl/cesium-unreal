@@ -259,7 +259,7 @@ bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
       TEXT("Large Cesium local coordinates use an encodable precision"),
       BuildCesiumRuntimeNaniteRenderData(LargeCoordinateMesh).Get());
 
-  FCesiumPrimitiveMeshData MultiClusterMesh = Mesh;
+  FCesiumPrimitiveMeshData MultiClusterMesh = MultiUVMesh;
   MultiClusterMesh.Indices.Reset();
   for (int32 Triangle = 0; Triangle < 90; ++Triangle) {
     MultiClusterMesh.Indices.Append({0, 1, 2});
@@ -294,6 +294,20 @@ bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
     const auto* pClusterHeaders =
         reinterpret_cast<const FCesiumRuntimeNaniteClusterDiskHeader*>(
             pPageHeader + 1);
+    const uint32 ExpectedRawFloat4s =
+        uint32(
+            sizeof(FCesiumRuntimeNanitePageGPUHeader) +
+            sizeof(Nanite::FPackedCluster) * pPageHeader->NumClusters +
+            Align(
+                sizeof(FCesiumRuntimeNanitePackedUVRange) *
+                    MultiClusterMesh.TextureCoordinates.Num() *
+                    pPageHeader->NumClusters,
+                uint32(sizeof(FVector4f)))) /
+        sizeof(FVector4f);
+    TestEqual(
+        TEXT("Raw GPU data alignment is relative to the Nanite page"),
+        pPageHeader->NumRawFloat4s,
+        ExpectedRawFloat4s);
     const uint32 FirstClusterTriangleCount = FMath::Min3(
         90u,
         uint32(NANITE_MAX_CLUSTER_TRIANGLES),
@@ -306,6 +320,47 @@ bool FCesiumRuntimeNaniteBuilder::RunTest(const FString&) {
         TEXT("Clusters crossing 32 triangles encode cumulative new vertices"),
         pClusterHeaders[0].NumPrevNewVerticesBeforeDwords,
         ExpectedCumulativeNewVertices);
+  }
+
+  FCesiumPrimitiveMeshData MultiPageMesh = MultiUVMesh;
+  MultiPageMesh.Indices.Reset();
+  for (int32 Triangle = 0; Triangle < 2676; ++Triangle) {
+    MultiPageMesh.Indices.Append({0, 1, 2});
+  }
+  TUniquePtr<FStaticMeshRenderData> MultiPageRenderData =
+      BuildCesiumRuntimeNaniteRenderData(MultiPageMesh);
+  TestTrue(
+      TEXT("A detailed Draco-sized primitive builds Nanite data"),
+      HasCesiumRuntimeNaniteData(MultiPageRenderData.Get()));
+  if (MultiPageRenderData &&
+      MultiPageRenderData->NaniteResourcesPtr.IsValid()) {
+    const Nanite::FResources& Resources =
+        *MultiPageRenderData->NaniteResourcesPtr;
+    TestTrue(
+        TEXT("Detailed primitive spans multiple root pages"),
+        Resources.PageStreamingStates.Num() > 1);
+    for (const Nanite::FPageStreamingState& Page :
+         Resources.PageStreamingStates) {
+      const int32 PageStart =
+          int32(Page.BulkOffset + Page.BulkSize - Page.PageSize);
+      const auto* pPageHeader =
+          reinterpret_cast<const FCesiumRuntimeNanitePageDiskHeader*>(
+              Resources.RootData.GetData() + PageStart);
+      const uint32 ExpectedRawFloat4s =
+          uint32(
+              sizeof(FCesiumRuntimeNanitePageGPUHeader) +
+              sizeof(Nanite::FPackedCluster) * pPageHeader->NumClusters +
+              Align(
+                  sizeof(FCesiumRuntimeNanitePackedUVRange) *
+                      MultiPageMesh.TextureCoordinates.Num() *
+                      pPageHeader->NumClusters,
+                  uint32(sizeof(FVector4f)))) /
+          sizeof(FVector4f);
+      TestEqual(
+          TEXT("Every root page uses page-relative raw GPU alignment"),
+          pPageHeader->NumRawFloat4s,
+          ExpectedRawFloat4s);
+    }
   }
 
   FCesiumPrimitiveMeshData Invalid = Mesh;
