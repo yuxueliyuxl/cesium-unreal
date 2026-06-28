@@ -19,6 +19,8 @@ public class CesiumRuntime : ModuleRules
 
         PrivateIncludePaths.AddRange(
             new string[] {
+              Path.Combine(GetModuleDirectory("Engine"), "Private"),
+              Path.Combine(GetModuleDirectory("Engine"), "Internal"),
               Path.Combine(GetModuleDirectory("Renderer"), "Private"),
               Path.Combine(GetModuleDirectory("Renderer"), "Internal")
             }

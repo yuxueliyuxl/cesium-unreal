@@ -38,6 +38,9 @@
 #include "PhysicsEngine/PhysicsSettings.h"
 #include "PixelFormat.h"
 #include "Runtime/Launch/Resources/Version.h"
+#include "RuntimeNanite/CesiumPrimitiveMeshData.h"
+#include "RuntimeNanite/CesiumPrimitiveRenderPath.h"
+#include "RuntimeNanite/CesiumRuntimeNaniteBuilder.h"
 #include "StaticMeshOperations.h"
 #include "StaticMeshResources.h"
 #include "UObject/ConstructorHelpers.h"
@@ -1788,7 +1791,72 @@ static void loadPrimitive(
 
   primitiveResult.meshIndex = options.pMeshOptions->meshIndex;
   primitiveResult.primitiveIndex = options.primitiveIndex;
-  primitiveResult.pRenderData = std::move(pRenderData);
+  primitiveResult.pPrimitiveMeshData =
+      MakeUnique<FCesiumPrimitiveMeshData>(ExtractCesiumPrimitiveMeshData(
+          LODResources.VertexBuffers,
+          indices,
+          pRenderData->Bounds,
+          LODResources.bHasColorVertexData));
+
+  const FCesiumRuntimeNaniteRuntimeSettings RuntimeNaniteSettings =
+      GetCesiumRuntimeNaniteRuntimeSettings(
+          modelOptions.enableRuntimeNanite,
+          modelOptions.runtimeNaniteMinimumTriangleCount);
+  FCesiumRuntimeNaniteEligibilityInput NaniteEligibilityInput;
+  NaniteEligibilityInput.bActorEnabled =
+      RuntimeNaniteSettings.bActorEnabled;
+  NaniteEligibilityInput.bGlobalEnabled =
+      RuntimeNaniteSettings.bGlobalEnabled;
+  NaniteEligibilityInput.bPlatformSupported =
+      RuntimeNaniteSettings.bPlatformSupported;
+  NaniteEligibilityInput.bIsTriangleList =
+      primitive.mode == CesiumGltf::MeshPrimitive::Mode::TRIANGLES;
+  NaniteEligibilityInput.bIsTranslucent =
+      material.alphaMode == CesiumGltf::Material::AlphaMode::BLEND;
+  NaniteEligibilityInput.bHasValidPositions =
+      !primitiveResult.pPrimitiveMeshData->Positions.IsEmpty();
+  NaniteEligibilityInput.bHasValidIndices =
+      !primitiveResult.pPrimitiveMeshData->Indices.IsEmpty() &&
+      primitiveResult.pPrimitiveMeshData->Indices.Num() % 3 == 0;
+  NaniteEligibilityInput.bHasValidNormals =
+      primitiveResult.pPrimitiveMeshData->Normals.Num() ==
+      primitiveResult.pPrimitiveMeshData->Positions.Num();
+  NaniteEligibilityInput.TriangleCount =
+      primitiveResult.pPrimitiveMeshData->Indices.Num() / 3;
+  NaniteEligibilityInput.MinimumTriangleCount =
+      RuntimeNaniteSettings.MinimumTriangleCount;
+  NaniteEligibilityInput.NumTextureCoordinates =
+      primitiveResult.pPrimitiveMeshData->TextureCoordinates.Num();
+
+  FCesiumPrimitiveRenderDataSelection RenderDataSelection =
+      SelectCesiumPrimitiveRenderData(
+          *primitiveResult.pPrimitiveMeshData,
+          NaniteEligibilityInput,
+          MoveTemp(pRenderData),
+          [](const FCesiumPrimitiveMeshData& MeshData) {
+            return BuildCesiumRuntimeNaniteRenderData(MeshData);
+          });
+  primitiveResult.RenderPath = RenderDataSelection.RenderPath;
+  primitiveResult.NaniteFallbackReason =
+      RenderDataSelection.FallbackReason;
+  if (RuntimeNaniteSettings.bLogFallbacks &&
+      RenderDataSelection.RenderPath ==
+          ECesiumPrimitiveRenderPath::Legacy) {
+    UE_LOG(
+        LogCesium,
+        Display,
+        TEXT(
+            "Runtime Nanite fallback: %s; vertices=%d triangles=%d UVs=%d "
+            "boundsOrigin=%s boundsExtent=%s"),
+        LexToString(RenderDataSelection.FallbackReason),
+        primitiveResult.pPrimitiveMeshData->Positions.Num(),
+        primitiveResult.pPrimitiveMeshData->Indices.Num() / 3,
+        primitiveResult.pPrimitiveMeshData->TextureCoordinates.Num(),
+        *primitiveResult.pPrimitiveMeshData->Bounds.Origin.ToString(),
+        *primitiveResult.pPrimitiveMeshData->Bounds.BoxExtent.ToString());
+  }
+  primitiveResult.pRenderData =
+      MoveTemp(RenderDataSelection.RenderData);
   primitiveResult.pCollisionMesh = nullptr;
   primitiveResult.transform =
       transform * yInvertMatrix * CesiumPrimitiveData::positionScaleMatrix;
@@ -3651,6 +3719,7 @@ UStaticMesh* createStaticMesh(
     UCesiumGltfComponent* pGltf,
     int32_t primitiveMode,
     const FName& componentName,
+    ECesiumPrimitiveRenderPath RenderPath,
     TUniquePtr<FStaticMeshRenderData>&& pRenderData) {
   TRACE_CPUPROFILER_EVENT_SCOPE(Cesium::SetupMesh)
 
@@ -3674,6 +3743,7 @@ UStaticMesh* createStaticMesh(
   pStaticMesh->NeverStream = true;
 
   pStaticMesh->SetRenderData(std::move(pRenderData));
+  ConfigureCesiumPrimitiveRenderPath(*pStaticMesh, RenderPath);
 
   return pStaticMesh;
 }
@@ -3774,6 +3844,7 @@ static void loadPrimitiveGameThreadPart(
       pGltf,
       meshPrimitive.mode,
       componentName,
+      loadResult.RenderPath,
       std::move(loadResult.pRenderData));
 
   ICesium3DTilesetLifecycleEventReceiver* pLifecycleEventReceiver =
@@ -3848,6 +3919,7 @@ static void loadPrimitiveGameThreadPart(
         pGltf,
         CesiumGltf::MeshPrimitive::Mode::LINES,
         componentName,
+        ECesiumPrimitiveRenderPath::Legacy,
         std::move(loadResult.pEdgeRenderData));
 
     {

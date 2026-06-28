@@ -56,6 +56,16 @@ struct CreateModelOptions {
   bool ignoreKhrMaterialsUnlit = false;
 
   /**
+   * Whether eligible streamed triangle meshes should use runtime Nanite.
+   */
+  bool enableRuntimeNanite = false;
+
+  /**
+   * Minimum triangle count for runtime Nanite eligibility.
+   */
+  int32 runtimeNaniteMinimumTriangleCount = 2000;
+
+  /**
    * Options for loading voxel primitives in the tileset, if present.
    */
   const CreateVoxelOptions* pVoxelOptions = nullptr;
@@ -75,6 +85,9 @@ public:
         alwaysIncludeTangents(other.alwaysIncludeTangents),
         createPhysicsMeshes(other.createPhysicsMeshes),
         ignoreKhrMaterialsUnlit(other.ignoreKhrMaterialsUnlit),
+        enableRuntimeNanite(other.enableRuntimeNanite),
+        runtimeNaniteMinimumTriangleCount(
+            other.runtimeNaniteMinimumTriangleCount),
         pVoxelOptions(other.pVoxelOptions),
         tileLoadResult(std::move(other.tileLoadResult)) {
     pModel = std::get_if<CesiumGltf::Model>(&this->tileLoadResult.contentKind);

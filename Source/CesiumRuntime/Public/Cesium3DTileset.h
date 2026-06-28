@@ -905,6 +905,29 @@ private:
   bool GenerateSmoothNormals = false;
 
   /**
+   * Whether to build eligible streamed triangle meshes as runtime Nanite
+   * meshes.
+   */
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintGetter = GetEnableRuntimeNanite,
+      BlueprintSetter = SetEnableRuntimeNanite,
+      Category = "Cesium|Rendering")
+  bool EnableRuntimeNanite = false;
+
+  /**
+   * The minimum triangle count required before a streamed mesh is considered
+   * for runtime Nanite.
+   */
+  UPROPERTY(
+      EditAnywhere,
+      BlueprintGetter = GetRuntimeNaniteMinimumTriangleCount,
+      BlueprintSetter = SetRuntimeNaniteMinimumTriangleCount,
+      Category = "Cesium|Rendering",
+      meta = (ClampMin = 0))
+  int32 RuntimeNaniteMinimumTriangleCount = 2000;
+
+  /**
    * Whether to request and render the water mask.
    *
    * Currently only applicable for quantized-mesh tilesets that support the
@@ -1204,6 +1227,20 @@ public:
 
   UFUNCTION(BlueprintSetter, Category = "Cesium|Rendering")
   void SetGenerateSmoothNormals(bool bGenerateSmoothNormals);
+
+  UFUNCTION(BlueprintGetter, Category = "Cesium|Rendering")
+  bool GetEnableRuntimeNanite() const { return EnableRuntimeNanite; }
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium|Rendering")
+  void SetEnableRuntimeNanite(bool bEnableRuntimeNanite);
+
+  UFUNCTION(BlueprintGetter, Category = "Cesium|Rendering")
+  int32 GetRuntimeNaniteMinimumTriangleCount() const {
+    return RuntimeNaniteMinimumTriangleCount;
+  }
+
+  UFUNCTION(BlueprintSetter, Category = "Cesium|Rendering")
+  void SetRuntimeNaniteMinimumTriangleCount(int32 MinimumTriangleCount);
 
   UFUNCTION(BlueprintGetter, Category = "Cesium|Rendering")
   bool GetEnableWaterMask() const { return EnableWaterMask; }
