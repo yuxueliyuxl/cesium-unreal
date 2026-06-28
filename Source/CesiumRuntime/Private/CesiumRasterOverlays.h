@@ -2,7 +2,7 @@
 
 #pragma once
 
-constexpr size_t maximumOverlayTextureCoordinateIDs = 2;
+constexpr size_t maximumOverlayTextureCoordinateIDs = 3;//zzt 原值为2，+1后为多一个图层投影
 
 /**
  * @brief Maps an overlay texture coordinate ID to the index of the
