@@ -364,7 +364,8 @@ struct FCesiumMetadataPropertyStatisticValue {
    * @brief The semantic of this statistic.
    */
   UPROPERTY(EditAnywhere, Category = "Cesium|Metadata|Statistics")
-  ECesiumMetadataStatisticSemantic Semantic;
+  ECesiumMetadataStatisticSemantic Semantic =
+      ECesiumMetadataStatisticSemantic::None;
 
   /**
    * @brief The value of this statistic. This reflects the value on the tileset
