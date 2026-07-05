@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "Containers/StaticArray.h"
 #include "CoreMinimal.h"
 #include "NaniteDefinitions.h"
 
