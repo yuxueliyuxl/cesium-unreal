@@ -2523,7 +2523,7 @@ void applyGltfUpAxisTransform(
     UE_LOG(
         LogCesium,
         Warning,
-        TEXT("Ignoring unknown gltfUpAxis value: {}"),
+        TEXT("Ignoring unknown gltfUpAxis value: %d"),
         gltfUpAxisValue);
   }
 }
